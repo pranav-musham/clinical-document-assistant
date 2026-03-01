@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: clinical-docs-api
+    env: python
+    region: oregon
+    plan: free
+    rootDir: backend
+    buildCommand: "pip install -r requirements.txt && alembic upgrade head"
+    startCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: DEBUG
+        value: "False"
+      - key: UPLOAD_DIR
+        value: "/tmp/uploads"
+      # Set these manually in the Render dashboard (never commit secrets):
+      - key: DATABASE_URL
+        sync: false
+      - key: SECRET_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false

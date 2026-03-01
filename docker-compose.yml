@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: clinical-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: clinical_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend API (Optional - for production)
+  # backend:
+  #   build:
+  #     context: ./backend
+  #     dockerfile: Dockerfile
+  #   container_name: clinical-backend
+  #   environment:
+  #     DATABASE_URL: postgresql://postgres:postgres@db:5432/clinical_db
+  #     SECRET_KEY: ${SECRET_KEY}
+  #     GEMINI_API_KEY: ${AIzaSyC7Ffmf3TfFWWqYxo8AKEG7-CbdsrRRynI}
+  #   ports:
+  #     - "8000:8000"
+  #   depends_on:
+  #     db:
+  #       condition: service_healthy
+  #   volumes:
+  #     - ./backend/uploads:/app/uploads
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  default:
+    name: clinical-network
