@@ -1,7 +1,6 @@
 """Application Configuration"""
 
 from pydantic_settings import BaseSettings
-from pydantic import field_validator
 from typing import List
 
 
@@ -36,18 +35,8 @@ class Settings(BaseSettings):
     ]
     UPLOAD_DIR: str = "uploads"
 
-    # CORS
-    CORS_ORIGINS: List[str] = [
-        "http://localhost:5173",
-        "http://localhost:3000",
-    ]
-
-    @field_validator("CORS_ORIGINS", mode="before")
-    @classmethod
-    def parse_cors_origins(cls, v):
-        if isinstance(v, str):
-            return [origin.strip() for origin in v.split(",")]
-        return v
+    # CORS — comma-separated string to avoid pydantic-settings JSON parsing issues
+    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
 
     class Config:
         env_file = ".env"
