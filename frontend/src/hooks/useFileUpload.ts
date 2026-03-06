@@ -7,6 +7,8 @@
 import { useState, useRef, useCallback } from 'react'
 import type { Consultation } from '../types'
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+
 export interface UploadProgress {
   file: File
   progress: number // 0-100
@@ -76,7 +78,7 @@ export function useFileUpload(): UseFileUploadReturn {
       if (meta?.patient_name) formData.append('patient_name', meta.patient_name)
       if (meta?.doctor_name)  formData.append('doctor_name',  meta.doctor_name)
 
-      const response = await fetch('http://localhost:8000/api/consultations/upload', {
+      const response = await fetch(`${API_URL}/api/consultations/upload`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
