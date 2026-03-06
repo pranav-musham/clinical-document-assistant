@@ -3,6 +3,7 @@
 import google.generativeai as genai
 import asyncio
 import logging
+import os
 from typing import Dict
 from app.config import settings
 
@@ -20,7 +21,7 @@ class GeminiService:
             return
 
         genai.configure(api_key=settings.GEMINI_API_KEY)
-        self.model = genai.GenerativeModel("gemini-2.5-flash")
+        self.model = genai.GenerativeModel("gemini-2.0-flash")
         self.configured = True
         logger.info("Gemini AI service initialized successfully")
 
@@ -43,8 +44,19 @@ class GeminiService:
         try:
             logger.info(f"Uploading audio file: {audio_path}")
 
-            # Upload audio file to Gemini
-            audio_file = genai.upload_file(path=audio_path)
+            # Determine MIME type from file extension
+            ext = os.path.splitext(audio_path)[1].lower()
+            mime_map = {
+                ".webm": "audio/webm",
+                ".mp3": "audio/mpeg",
+                ".wav": "audio/wav",
+                ".m4a": "audio/mp4",
+                ".ogg": "audio/ogg",
+            }
+            mime_type = mime_map.get(ext, "audio/webm")
+
+            # Upload audio file to Gemini with explicit MIME type
+            audio_file = genai.upload_file(path=audio_path, mime_type=mime_type)
 
             # Wait for file to be processed
             while audio_file.state.name == "PROCESSING":
