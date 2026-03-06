@@ -31,7 +31,8 @@ class Settings(BaseSettings):
         "audio/wav",
         "audio/m4a",
         "audio/webm",
-        "audio/ogg"
+        "audio/ogg",
+        "video/webm"
     ]
     UPLOAD_DIR: str = "uploads"
 
