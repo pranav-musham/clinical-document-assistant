@@ -35,8 +35,9 @@ async def upload_consultation(
 
     Returns consultation object with pending status.
     """
-    # Validate file type
-    if file.content_type not in settings.ALLOWED_AUDIO_FORMATS:
+    # Validate file type (strip codec params like "video/webm;codecs=opus")
+    base_content_type = (file.content_type or "").split(";")[0].strip()
+    if base_content_type not in settings.ALLOWED_AUDIO_FORMATS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid file type. Allowed: {', '.join(settings.ALLOWED_AUDIO_FORMATS)}"
