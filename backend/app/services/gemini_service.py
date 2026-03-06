@@ -47,25 +47,29 @@ class GeminiService:
             # Determine MIME type from file extension
             ext = os.path.splitext(audio_path)[1].lower()
             mime_map = {
-                ".webm": "audio/webm",
+                ".webm": "video/webm",
                 ".mp3": "audio/mpeg",
                 ".wav": "audio/wav",
                 ".m4a": "audio/mp4",
                 ".ogg": "audio/ogg",
             }
-            mime_type = mime_map.get(ext, "audio/webm")
+            mime_type = mime_map.get(ext, "video/webm")
 
             # Upload audio file to Gemini with explicit MIME type
             audio_file = genai.upload_file(path=audio_path, mime_type=mime_type)
 
             # Wait for file to be processed
-            while audio_file.state.name == "PROCESSING":
+            max_wait = 30
+            waited = 0
+            while audio_file.state.name == "PROCESSING" and waited < max_wait:
                 logger.info("Waiting for audio processing...")
-                await asyncio.sleep(1)
+                await asyncio.sleep(2)
+                waited += 2
                 audio_file = genai.get_file(audio_file.name)
 
             if audio_file.state.name == "FAILED":
-                raise Exception("Audio file processing failed")
+                logger.error(f"Gemini file state FAILED for {audio_path}, mime={mime_type}, size={os.path.getsize(audio_path)}")
+                raise Exception(f"Audio file processing failed (mime={mime_type}, size={os.path.getsize(audio_path)} bytes)")
 
             logger.info("Audio file processed successfully")
 
