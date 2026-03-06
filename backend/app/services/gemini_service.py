@@ -42,38 +42,25 @@ class GeminiService:
             raise Exception("Gemini API not configured. Please set GEMINI_API_KEY.")
 
         try:
-            logger.info(f"Uploading audio file: {audio_path}")
+            logger.info(f"Processing audio file: {audio_path}")
 
             # Determine MIME type from file extension
             ext = os.path.splitext(audio_path)[1].lower()
             mime_map = {
-                ".webm": "video/webm",
+                ".webm": "audio/webm",
                 ".mp3": "audio/mpeg",
                 ".wav": "audio/wav",
                 ".m4a": "audio/mp4",
                 ".ogg": "audio/ogg",
             }
-            mime_type = mime_map.get(ext, "video/webm")
+            mime_type = mime_map.get(ext, "audio/webm")
 
-            # Upload audio file to Gemini with explicit MIME type
-            audio_file = genai.upload_file(path=audio_path, mime_type=mime_type)
+            # Read file as bytes and send inline (avoids Files API issues with webm)
+            with open(audio_path, "rb") as f:
+                audio_bytes = f.read()
 
-            # Wait for file to be processed
-            max_wait = 30
-            waited = 0
-            while audio_file.state.name == "PROCESSING" and waited < max_wait:
-                logger.info("Waiting for audio processing...")
-                await asyncio.sleep(2)
-                waited += 2
-                audio_file = genai.get_file(audio_file.name)
+            logger.info(f"Sending {len(audio_bytes)} bytes inline to Gemini (mime={mime_type})")
 
-            if audio_file.state.name == "FAILED":
-                logger.error(f"Gemini file state FAILED for {audio_path}, mime={mime_type}, size={os.path.getsize(audio_path)}")
-                raise Exception(f"Audio file processing failed (mime={mime_type}, size={os.path.getsize(audio_path)} bytes)")
-
-            logger.info("Audio file processed successfully")
-
-            # Generate transcript
             transcript_prompt = """
             Transcribe this medical consultation audio accurately.
             Format the conversation with speaker labels when possible:
@@ -84,16 +71,13 @@ class GeminiService:
             Include all spoken content. Maintain professional medical terminology.
             """
 
-            response = self.model.generate_content([transcript_prompt, audio_file])
+            response = self.model.generate_content([
+                transcript_prompt,
+                {"mime_type": mime_type, "data": audio_bytes}
+            ])
+
             transcript = response.text
-
-            # Clean up: delete uploaded file from Gemini
-            try:
-                genai.delete_file(audio_file.name)
-                logger.info("Cleaned up uploaded audio file")
-            except Exception as e:
-                logger.warning(f"Failed to delete file: {e}")
-
+            logger.info("Audio transcribed successfully")
             return transcript
 
         except Exception as e:
