@@ -7,7 +7,7 @@
 import { useState, useRef, useCallback } from 'react'
 import type { Consultation } from '../types'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const API_URL = import.meta.env.VITE_API_URL || 'https://clinical-document-assistant.onrender.com'
 
 export interface UploadProgress {
   file: File
