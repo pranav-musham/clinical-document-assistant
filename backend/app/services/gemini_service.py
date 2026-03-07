@@ -1,10 +1,11 @@
 """Google Gemini AI Service for Audio Transcription and SOAP Note Generation"""
 
-import google.generativeai as genai
 import asyncio
 import logging
 import os
 from typing import Dict
+from google import genai
+from google.genai import types
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -20,8 +21,8 @@ class GeminiService:
             self.configured = False
             return
 
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        self.model = genai.GenerativeModel("gemini-1.5-flash")
+        self.client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        self.model = "gemini-2.0-flash-lite"
         self.configured = True
         logger.info("Gemini AI service initialized successfully")
 
@@ -44,7 +45,6 @@ class GeminiService:
         try:
             logger.info(f"Processing audio file: {audio_path}")
 
-            # Determine MIME type from file extension
             ext = os.path.splitext(audio_path)[1].lower()
             mime_map = {
                 ".webm": "audio/webm",
@@ -55,7 +55,6 @@ class GeminiService:
             }
             mime_type = mime_map.get(ext, "audio/webm")
 
-            # Read file as bytes and send inline (avoids Files API issues with webm)
             with open(audio_path, "rb") as f:
                 audio_bytes = f.read()
 
@@ -71,10 +70,13 @@ class GeminiService:
             Include all spoken content. Maintain professional medical terminology.
             """
 
-            response = self.model.generate_content([
-                transcript_prompt,
-                {"mime_type": mime_type, "data": audio_bytes}
-            ])
+            response = self.client.models.generate_content(
+                model=self.model,
+                contents=[
+                    transcript_prompt,
+                    types.Part.from_bytes(data=audio_bytes, mime_type=mime_type)
+                ]
+            )
 
             transcript = response.text
             logger.info("Audio transcribed successfully")
@@ -103,10 +105,11 @@ class GeminiService:
         try:
             soap_prompt = self._get_soap_prompt(transcript)
 
-            response = self.model.generate_content(
-                soap_prompt,
-                generation_config=genai.GenerationConfig(
-                    temperature=0.3,  # Lower for more consistent output
+            response = self.client.models.generate_content(
+                model=self.model,
+                contents=soap_prompt,
+                config=types.GenerateContentConfig(
+                    temperature=0.3,
                     top_p=0.95,
                     top_k=40,
                     max_output_tokens=2048,
@@ -163,18 +166,6 @@ SECTION CONTENT GUIDELINES:
 
 ---
 
-STEP-BY-STEP GENERATION PROCESS:
-
-Step 1: Read the entire transcript and identify what information belongs in each section
-Step 2: Start with ## SUBJECTIVE and write ONLY patient-reported symptoms and history
-Step 3: Move to ## OBJECTIVE and write ONLY doctor's observations and measurements
-Step 4: Move to ## ASSESSMENT and write ONLY the diagnosis and clinical reasoning
-Step 5: Move to ## PLAN and write ONLY the treatment, medications, and follow-up
-
-DO NOT combine sections or put all information in SUBJECTIVE!
-
----
-
 Now generate the SOAP note following this EXACT structure:
 
 ## SUBJECTIVE
@@ -188,8 +179,6 @@ Now generate the SOAP note following this EXACT structure:
 ## OBJECTIVE
 - **Vital Signs:** [If mentioned: BP, HR, temp, RR, O2 sat, etc.]
 - **Physical Examination:** [Doctor's findings from examining the patient]
-  - General: [appearance, distress level]
-  - Specific systems examined: [what doctor found]
 - **Diagnostic Results:** [If mentioned: lab values, imaging results]
 
 ## ASSESSMENT
@@ -205,13 +194,6 @@ Now generate the SOAP note following this EXACT structure:
 - **Follow-up:** [When to return, what to monitor]
 - **Precautions:** [Warning signs to watch for]
 
-FORMATTING RULES:
-- Use bullet points with **bold labels**
-- Write "Not mentioned" ONLY for specific subsections lacking info
-- DO NOT write "Not mentioned" for entire sections
-- Use medical terminology and abbreviations (BP, HR, etc.)
-- Be concise but thorough
-
 Generate the complete SOAP note NOW with all four sections filled:
 """
 
@@ -220,33 +202,13 @@ Generate the complete SOAP note NOW with all four sections filled:
         audio_path: str,
         include_transcript: bool = True
     ) -> Dict[str, any]:
-        """
-        Complete processing pipeline: transcribe + generate SOAP.
-
-        Args:
-            audio_path: Path to audio file
-            include_transcript: Whether to include transcript in response
-
-        Returns:
-            {
-                "transcript": str (optional),
-                "soap_note": str,
-                "processing_time": float
-            }
-
-        Raises:
-            Exception: If processing fails
-        """
+        """Complete processing pipeline: transcribe + generate SOAP."""
         import time
         start_time = time.time()
 
         try:
-            # Step 1: Transcribe
             transcript = await self.transcribe_audio(audio_path)
-
-            # Step 2: Generate SOAP note
             soap_note = await self.generate_soap_note(transcript)
-
             processing_time = time.time() - start_time
 
             result = {
@@ -269,19 +231,7 @@ Generate the complete SOAP note NOW with all four sections filled:
         audio_path: str,
         max_retries: int = 3
     ) -> str:
-        """
-        Transcribe audio with retry logic.
-
-        Args:
-            audio_path: Path to audio file
-            max_retries: Maximum number of retry attempts
-
-        Returns:
-            Transcribed text
-
-        Raises:
-            Exception: If all retries fail
-        """
+        """Transcribe audio with retry logic."""
         for attempt in range(max_retries):
             try:
                 return await self.transcribe_audio(audio_path)
@@ -289,7 +239,7 @@ Generate the complete SOAP note NOW with all four sections filled:
                 if attempt == max_retries - 1:
                     raise
 
-                wait_time = 2 ** attempt  # Exponential backoff
+                wait_time = 2 ** attempt
                 logger.warning(
                     f"Transcription attempt {attempt + 1} failed. "
                     f"Retrying in {wait_time} seconds..."
